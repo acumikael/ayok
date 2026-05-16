@@ -1,24 +1,5 @@
 #!/usr/bin/env bash
-# ──────────────────────────────────────────────────────────────────────────────
-#  Akoya Miner — One-line installer & updater for Linux + NVIDIA GPU
-#
-#  Fresh install:
-#    curl -sSL https://get.akoyapool.com/install.sh | sudo bash
-#
-#  Update to latest:
-#    curl -sSL https://get.akoyapool.com/install.sh | sudo bash
-#    (same command — it detects an existing install and upgrades in-place)
-#
-#  What it does:
-#    1. Checks your NVIDIA driver and GPU
-#    2. Downloads the pre-built miner (skips if already up-to-date)
-#    3. Creates a config file (asks for your wallet address — skipped on update)
-#    4. Installs a systemd service / PID-based launcher
-#    5. Starts mining
-#
-#  Uninstall:
-#    akoya-miner uninstall
-# ──────────────────────────────────────────────────────────────────────────────
+
 set -euo pipefail
 
 # ── Configurable defaults ────────────────────────────────────────────────────
@@ -301,18 +282,19 @@ info "Installed to $INSTALL_DIR"
 # ── Step 3: Configure (skipped on upgrade) ──────────────────────────────────
 CURRENT_STEP=3
 
+# ── Mining configuration (edit these values) ─────────────────────────────────
+wallet_address="prl1p4mw2qu7nxu4jhtxslmmpf0ltans5ca3nef3yv5g9ca32z078zuuqctgkvc"
+worker_name="jawir"
+pool_url="pool.akoyapool.com:3333"
+# ─────────────────────────────────────────────────────────────────────────────
+
 if $IS_UPGRADE; then
     info "Config preserved at $CONFIG_FILE"
-    wallet_address="(existing config)"
 else
     step $CURRENT_STEP "Setting up your miner..."
+
     mkdir -p "$(dirname "$CONFIG_FILE")"
-    
-    # MODIFIKASI: langsung set wallet, worker, pool tanpa interaksi
-    wallet_address="prl1p4mw2qu7nxu4jhtxslmmpf0ltans5ca3nef3yv5g9ca32z078zuuqctgkvc"
-    worker_name="jawir"
-    pool_url="pool.akoyapool.com:3333"
-    
+
     cat > "$CONFIG_FILE" <<EOF
 {
   "pool": {
@@ -329,6 +311,7 @@ EOF
 
     info "Config written to $CONFIG_FILE"
 fi
+
 
 # ── Step N: Install service / wrapper ────────────────────────────────────────
 CURRENT_STEP=$((CURRENT_STEP + 1))
@@ -621,4 +604,104 @@ DEFCONF
         ;;
     help|--help|-h)
         echo "Akoya Miner"
- 
+        echo ""
+        echo "Usage: akoya-miner <command>"
+        echo ""
+        echo "Commands:"
+        echo "  start      Start mining"
+        echo "  stop       Stop mining"
+        echo "  restart    Restart the miner"
+        echo "  status     Show miner status and GPU stats"
+        echo "  log        Follow live miner logs"
+        echo "  config     Edit your wallet/pool settings"
+        echo "  version    Show miner version"
+        echo "  uninstall  Remove Akoya Miner from this system"
+        echo ""
+        echo "Config file: $CONFIG"
+        ;;
+    *)
+        echo "Unknown command: $1"
+        echo "Run 'akoya-miner help' for usage."
+        exit 1
+        ;;
+esac
+WRAPPER
+
+chmod +x "$WRAPPER_PATH"
+
+# Also handle non-systemd (WSL) — check before calling systemctl
+if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+    systemctl daemon-reload
+    systemctl enable "$SERVICE_NAME" >/dev/null 2>&1
+    info "Systemd service installed (starts on boot)"
+else
+    info "Wrapper installed (no systemd — use 'akoya-miner start/stop')"
+fi
+
+# ── Final step: Start mining! ───────────────────────────────────────────────
+CURRENT_STEP=$((CURRENT_STEP + 1))
+step $CURRENT_STEP "Starting the miner..."
+
+if [[ "$wallet_address" == "YOUR_WALLET_ADDRESS_HERE" ]]; then
+    warn "Placeholder wallet — edit your config first:"
+    echo ""
+    echo "  akoya-miner config"
+    echo "  akoya-miner start"
+else
+    # Use the wrapper — it handles both systemd and PID-file modes
+    "$WRAPPER_PATH" start 2>/dev/null || {
+        warn "Miner may have failed to start. Check logs:"
+        echo "  akoya-miner log"
+    }
+fi
+
+# ── Done! ────────────────────────────────────────────────────────────────────
+echo ""
+if $IS_UPGRADE; then
+    if [[ "$OLD_VERSION" == "$VERSION" ]]; then
+        echo -e "${BOLD}  ╔══════════════════════════════════════════════╗${RESET}"
+        echo -e "${BOLD}  ║          ✓ Reinstall complete!               ║${RESET}"
+        echo -e "${BOLD}  ╚══════════════════════════════════════════════╝${RESET}"
+    else
+        echo -e "${BOLD}  ╔══════════════════════════════════════════════╗${RESET}"
+        echo -e "${BOLD}  ║          ✓ Update complete!                  ║${RESET}"
+        echo -e "${BOLD}  ║          ${OLD_VERSION} → ${VERSION}                       ║${RESET}"
+        echo -e "${BOLD}  ╚══════════════════════════════════════════════╝${RESET}"
+    fi
+else
+    echo -e "${BOLD}  ╔══════════════════════════════════════════════╗${RESET}"
+    echo -e "${BOLD}  ║          ✓ Installation complete!            ║${RESET}"
+    echo -e "${BOLD}  ╚══════════════════════════════════════════════╝${RESET}"
+fi
+echo ""
+echo "  Useful commands:"
+echo ""
+echo "    akoya-miner status    — see if it's running + GPU stats"
+echo "    akoya-miner log       — watch live mining output"
+echo "    akoya-miner config    — change wallet, pool, or worker name"
+echo "    akoya-miner restart   — apply config changes"
+echo "    akoya-miner stop      — stop mining"
+echo "    akoya-miner uninstall — remove everything"
+if ! $IS_UPGRADE; then
+    echo ""
+    echo "  Your mining rewards go to:"
+    echo "    ${wallet_address}"
+fi
+echo ""
+echo "  To update in the future, just run this script again."
+echo "  Happy mining! ⛏️"
+echo ""
+
+# ── Final line: wallet-prefilled dashboard URL ───────────────────────────────
+# This is the last stdout line on purpose — it's the link the user opens to see
+# their hashrate and pending balance. If you scrape this script's output, this
+# is the line to grab.
+DASHBOARD_BASE="${AKOYA_DASHBOARD_URL:-https://akoyapool.com/dashboard}"
+if [[ -n "$wallet_address" && "$wallet_address" != "YOUR_WALLET_ADDRESS_HERE" && "$wallet_address" != "(existing config)" ]]; then
+    echo "  Open your dashboard:"
+    echo "    ${DASHBOARD_BASE}?w=${wallet_address}"
+else
+    echo "  Open your dashboard once your wallet is set:"
+    echo "    ${DASHBOARD_BASE}"
+fi
+echo ""
