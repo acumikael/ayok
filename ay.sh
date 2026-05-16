@@ -1,5 +1,24 @@
 #!/usr/bin/env bash
-
+# ──────────────────────────────────────────────────────────────────────────────
+#  Akoya Miner — One-line installer & updater for Linux + NVIDIA GPU
+#
+#  Fresh install:
+#    curl -sSL https://get.akoyapool.com/install.sh | sudo bash
+#
+#  Update to latest:
+#    curl -sSL https://get.akoyapool.com/install.sh | sudo bash
+#    (same command — it detects an existing install and upgrades in-place)
+#
+#  What it does:
+#    1. Checks your NVIDIA driver and GPU
+#    2. Downloads the pre-built miner (skips if already up-to-date)
+#    3. Creates a config file (asks for your wallet address — skipped on update)
+#    4. Installs a systemd service / PID-based launcher
+#    5. Starts mining
+#
+#  Uninstall:
+#    akoya-miner uninstall
+# ──────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 # ── Configurable defaults ────────────────────────────────────────────────────
